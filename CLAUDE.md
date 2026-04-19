@@ -1,26 +1,21 @@
-# CartSnitch Monorepo
+# CartSnitch Frontend
 
 ## Project Context
 
-CartSnitch is a self-hosted grocery price intelligence platform. This repo (`cartsnitch/cartsnitch`) is the **monorepo** containing the flagship frontend PWA and core backend services.
+CartSnitch is a self-hosted grocery price intelligence platform. This repo (`cartsnitch/app`) is the **standalone frontend PWA** — a mobile-first React application.
 
 **GitHub org:** github.com/cartsnitch
 **Domain:** cartsnitch.com
 
-### Monorepo Layout
-
-| Directory | Service | Purpose |
-|-----------|---------|---------|
-| `/` (root) | Frontend | React PWA, mobile-first (this directory) |
-| `auth/` | Auth | Better-Auth Node.js service (session management, email/password, OAuth) |
-| `api/` | API Gateway | Frontend-facing REST API |
-| `common/` | Common | Shared Python models, schemas, Alembic migrations |
-| `receiptwitness/` | ReceiptWitness | Purchase data ingestion via retailer scrapers |
-
-### Other CartSnitch Repos (still separate)
+### CartSnitch Repos
 
 | Repo | Service | Purpose |
 |------|---------|---------|
+| `cartsnitch/app` | Frontend | React PWA, mobile-first (this repo) |
+| `cartsnitch/auth` | Auth | Better-Auth Node.js service (session management, email/password, OAuth) |
+| `cartsnitch/api` | API Gateway | Frontend-facing REST API |
+| `cartsnitch/common` | Common | Shared Python models, schemas, Alembic migrations |
+| `cartsnitch/receiptwitness` | ReceiptWitness | Purchase data ingestion via retailer scrapers |
 | `cartsnitch/stickershock` | StickerShock | Price increase detection & CPI comparison |
 | `cartsnitch/shrinkray` | ShrinkRay | Shrinkflation monitoring |
 | `cartsnitch/clipartist` | ClipArtist | Coupon/deal watching & shopping optimization |
@@ -41,20 +36,19 @@ The frontend is a mobile-first PWA that serves as the primary user interface for
 
 ## Tech Stack
 
-- React 18+ (or Next.js if SSR/SSG is valuable for public pages)
+- React 18+
 - TypeScript
 - Tailwind CSS (mobile-first responsive design)
 - Workbox (service worker, offline caching, PWA manifest)
-- Recharts or Chart.js (price trend visualizations)
+- Recharts (price trend visualizations)
 - TanStack Query (React Query) for data fetching and caching
 - React Router (client-side routing)
-- Zustand or Jotai (lightweight state management)
+- Zustand (state management)
 - Vite (build tool)
 
 ## Repo Structure
 
 ```
-frontend/
 ├── CLAUDE.md
 ├── README.md
 ├── package.json
@@ -63,6 +57,9 @@ frontend/
 ├── tailwind.config.ts
 ├── Dockerfile                  # Multi-stage: build + nginx serve
 ├── docker-compose.yml          # Local dev
+├── .github/
+│   └── workflows/
+│       └── ci.yml             # CI: lint, test, audit, e2e, lighthouse, build-and-push, deploy
 ├── public/
 │   ├── manifest.json           # PWA manifest
 │   ├── sw.js                   # Service worker (Workbox generated)
@@ -131,7 +128,7 @@ frontend/
 │   │       ├── EmptyState.tsx
 │   │       ├── StoreLogo.tsx
 │   │       └── ErrorBoundary.tsx
-│   ├── stores/                 # Zustand/Jotai state stores
+│   ├── stores/                 # Zustand state stores
 │   │   ├── authStore.ts
 │   │   └── uiStore.ts
 │   ├── utils/
@@ -144,6 +141,10 @@ frontend/
 │       ├── price.ts
 │       ├── coupon.ts
 │       └── alert.ts
+├── e2e/
+│   └── ...
+├── scripts/
+│   └── ...
 └── tests/
     └── ...
 ```
@@ -167,7 +168,7 @@ frontend/
 
 All data comes from the CartSnitch API gateway (`cartsnitch/api`). Base URL configured via environment variable `VITE_API_URL`.
 
-- **Authentication via Better-Auth** (`auth/` service). Sessions are managed via httpOnly cookies — no tokens in localStorage or memory.
+- **Authentication via Better-Auth** (`cartsnitch/auth` service). Sessions are managed via httpOnly cookies — no tokens in localStorage or memory.
   - Auth service URL configured via `VITE_AUTH_URL` (default: `http://localhost:3001`)
   - Frontend uses `better-auth/react` client for sign-in, sign-up, sign-out, and `useSession()` hook
   - API gateway validates sessions by querying the shared `sessions` table in Postgres
@@ -184,9 +185,24 @@ All data comes from the CartSnitch API gateway (`cartsnitch/api`). Base URL conf
 - `npm run build` for production build
 - Lint with ESLint, format with Prettier
 
+## CI/CD
+
+This repo uses a GitHub Actions CI pipeline (`.github/workflows/ci.yml`):
+
+- **lint** — ESLint + TypeScript check
+- **test** — Vitest
+- **audit** — npm audit
+- **e2e** — Playwright
+- **lighthouse** — Lighthouse CI
+- **build-and-push** — builds Docker image, Grype vulnerability scan, pushes to `ghcr.io/cartsnitch/app`
+- **deploy-dev** — updates `ghcr.io/cartsnitch/app` image tag in `infra/apps/overlays/dev/kustomization.yaml`
+- **deploy-uat** — updates `ghcr.io/cartsnitch/app` image tag in `infra/apps/overlays/uat/kustomization.yaml`
+
+Image tags: CalVer (`YYYY.MM.DD[.N]`) on `main`, `sha-<commit>` on `dev`/`uat`.
+
 ## Important Notes
 
 - The store account connection flow is the most complex UX. Users need to authenticate with each retailer. This likely involves opening a controlled browser window/iframe where they log in, and CartSnitch captures the resulting session. Design this flow carefully — it needs to feel safe and trustworthy.
-- Public price transparency pages should be SSR-friendly or statically generated for SEO if the "naming and shaming" feature is going to get organic traffic. Consider Next.js for these pages specifically, or a separate lightweight static site.
+- Public price transparency pages should be SSR-friendly or statically generated for SEO if the "naming and shaming" feature is going to get organic traffic.
 - The optimized shopping list is the killer feature for retention. Make it dead simple: add items → see the split → go shop. No friction.
 - Push notifications (via service worker) for price alerts and deal notifications are a Phase 2+ feature but design the alert system with this in mind.
